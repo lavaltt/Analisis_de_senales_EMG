@@ -71,7 +71,7 @@ EMG = datos['Voltaje (V)']
 Dicha señal cuenta con las siguientes características:
 * Frecuencia de muestreo (fs) = 300Hz
 * Tiempo de muestreo (ts) = 1200 ms
-* Contracciones = 14
+* Contracciones = La señal no es muy clara en cuanto a la cantidad de contracciones realizadas, por lo que se tomo como base el análisis y procesamiento de la misma para determinar el número, ya que durante la captura no se realizó un conteo. Teniendo en cuenta lo anterior, la cantidad de contraccines fueron apróximadamente 14. 
 
 La frecuencia de muestreo fue definida a partir del criterio de nyquist que indica que la fs debe ser más del doble de la frecuencia máxima, en este caso del músculo que estabamos midiendo. De acuerdo con Moreno Sanz, la frecuencia del músculo se encuentra entre 50 – 100 Hz. [^5^]. En este caso particular, se tomó como frecuencia máxima 100 Hz. Se decidió tomar la fs como tres veces la frceuencia máxima, con el fin de evitar el riesgo de aliassing que puede ocurrir si se esta muy cerca del criterio de nyquist. El aliassing es el efecto que tienen las señales continuas en el tiempo de tornarse indistingibles al muestrearse digitalmente. [^6^].
 
@@ -80,14 +80,27 @@ El tiempo de muestreo resultó a partir del desgaste muscular y la tolerancia de
 En cuanto a las contracciones, debido al ritmo en que se realizó el ejercicio (lento pero continuo), y al corto tiempo muestreado, se lograron apróximadamente 14. 
 
 ## Filtrado de la señal
-El proceso de filtrado resulta esencial para eliminar las frecuencias no deseadas de la señal y minimizar el ruido cuanto sea posible. Para este caso, se decidió realizar un filtro pasabanda tipo butterworth. El filtro pasabanda permite el paso de un rango específico de frecuencias, lo que resulta esencial en procesamiento de señales EMG, dado que las frecuencias tanto muy altas, como muy bajas resultan ser ruidos e interferencias de los métodos de adquisición. Se eligió como frecuencias de corte 20 y 100 HZ, dado lo contenido en la literaturatura respecto a las frecuencias medias de la actividad muscular. [^5^]. 
+Los filtros son herramientas fundamentales en el procesamiento de señales porque permiten modificar o eliminar ciertas partes de una señal, ya sea para mejorar su calidad, eliminar ruido, o extraer información relevante. En sistemas de adquisición de señales digitales, como los DAQ, el filtrado es crucial para evitar el aliasing, que ocurre cuando las frecuencias de la señal son más altas que la mitad de la frecuencia de muestreo, estando muy ecrca del teorema de Nyquist, lo que puede producir distorsiones en la señal.Para este caso, se decidió realizar un filtro pasabanda tipo butterworth. El filtro pasabanda permite el paso de un rango específico de frecuencias, lo que resulta esencial en procesamiento de señales EMG, dado que las frecuencias tanto muy altas, como muy bajas resultan ser ruidos e interferencias de los métodos de adquisición. Se eligió como frecuencias de corte 20 y 100 HZ, dado lo contenido en la literaturatura respecto a las frecuencias medias de la actividad muscular. [^5^]. 
 
 Adicionalmente, teniendo en cuenta los parametros de diseño para los filtros, se eligió como frecuencias para atenuación en -20dB, 5 y 120 Hz. Estas frecuencias determinan la pendiente del filtro y el comienzo de la atenuación. 
 En cuanto a la elección del tipo butterwoth, se determinó debido a su respuesta en frecuencia plana en la banda pasante, lo que facilita la eliminación de ruidos y artefactos sin introducir ningún tipo de ondulación que pueda afectar la interpretación de los datos. 
 
 Para implementar el filtro en python y aplicarlo a ala señal es necesario conocer el orden del mismo. Este fue determinado de la siguiente manera:
 
-'''''''''''''''''''''FOTO CALCULOS''''''''''''''''''''''''''''''''
+Se deseaba diseñar un filtro pasabanda con -3.01 dB de atenuación en 20Hz y 100Hz, y con -20dB de atenuación en 5Hz y 120Hz. Inicialmente fue necesario hacer el proceso de conversión de unidades de Hz a radianes/s, de la siguiente manera:
+
+![conversiones](https://github.com/user-attachments/assets/73bdcc99-18e5-4d11-afd2-4c94da59a45a)
+
+Adicionalmente, se hizo uso de la transformación del filtro pasabajo a pasabanda para determinar la frecuencia de atenuación en -20dB para el diseño de un filtro pasabajo, esto teniendo en cuenta que resulta más sencillo diseñar este tipo de filtros y luego realizar la correspondiente transformación. 
+
+
+![transformacion](https://github.com/user-attachments/assets/c00567f6-772a-4ebd-8adb-980a54bd85eb)
+
+Los cálculos realizados a mano, fueron los siguientes:
+
+![calculos](https://github.com/user-attachments/assets/175534c2-0473-4518-92bc-cab4f7900ac0)
+
+
 Como se puede apreciar en el proceso matemático, el orden del filtro dio como resultado 4.28, sin embargo se debe aproximar al entero más cercano hacia arriba, por lo que se determina de orden 5. 
 
 ```python
@@ -130,11 +143,15 @@ ventana_total = 2 * ventana_size
 ventana_hanning = windows.hann(ventana_total)
 segmento = datos_filtrados[inicio:fin] * ventana_hanning
 ```
+Las ventanas fueron creadas por medio de la libreria scipy.signal, que contiene una función windows que permite hacer diferentes tipos de ventanas. En este caso la ventaan se hace con windows.hann, que se encarga de hacer una ventana tipo hanning. 
+
 La ventana que se esta aplicando en cada segmento en el que se detecta un pico, se puede apreciar a continuación:
 
 <img src="https://github.com/lavaltt/Analisis_de_senales_EMG/blob/main/ventanaaa.png?raw=true"  width="1000" height="500">
 
 *Figura 7: Ventana aplicada. Tomado de : Autoría propia*
+
+Dicha ventana tiene una longitud de 0.20 segundos, determinada en los parámetros de diseño para que tome este tiempo en los segmentos detectados como picos. 
 
 En relación a los segmentos elegidos, la gráfica de una de las ventanas comparandola con la contracción sería la siguiente: 
 
@@ -143,11 +160,15 @@ En relación a los segmentos elegidos, la gráfica de una de las ventanas compar
 
 *Figura 8: Segmento  y ventana de hanning. Tomado de : Autoría propia*
 
+La gráfica azul representa el segmento detectado como un pico en la señal filtrada, sección a la que se aplica la ventana mostrada en la gráfica de color verde. 
+
 La señal filtrada, con cada segmento ventaneado y la ventana que se le aplica a cada uno se puede observar a continuación: 
 
 <img src="https://github.com/lavaltt/Analisis_de_senales_EMG/blob/main/se%C3%B1al%20con%20ventanas.png?raw=true"  width="1000" height="500">
 
 *Figura 9: Señal aventanada. Tomado de : Autoría propia*
+
+En esta graficación se pueden apreciar los picos detectados y la ventana que se le aplica a cada uno. Si se tiene en cuenta la señal filtrada en color rosado, se puede notar que algunos picos que podrian considerarse contracciones no fueron segmentados, esto puede deberse a complicaciones en la captura de la señal, que sigue sin ser muy clara respecto a ciertas secciones y también al diseño de las ventanas. Al asegurarse de que haya una distancia entre segmentos de 0.5 segundos, aquellos que estan muy cercanos no logran ser tomados. 
 
 Por último, se hizo una reconstrucción de la señal a partir de los segmentos aventanados:
 
@@ -155,12 +176,135 @@ Por último, se hizo una reconstrucción de la señal a partir de los segmentos 
 
 *Figura 10: Señal reconstruida. Tomado de : Autoría propia*
 
-
+Esta reconstrucción permite observar cada segmento ventaneado de manera conjunta, eliminando el resto d la señal. En terminos generales resulta precisa en cuanto a cómo debe verse una señal EMG capturada por equipo especializado. 
 
 ## Análisis espectral 
-Una vez se cuenta con la señal aventanada, se puede realizar un análisis espectral de cada ventana para conocer las características en este dominio. El análisis espectral se centra en el contenido en frecuencia de la señal, utilizando técnicas como la Transformada de Fourier (FT). 
+Como se mencionó en la sección de aventamiento, dicho proceso se realiza principalmente para poder aplicar un análisis espectral por medio de la tranformada de Fourier. Este análisis espectral se hace para cada ventana y ayuda a  conocer las características en el dominio de la frecuencia de los segmentos ventaneados.
 
-## Test de hipótesis 
+```python
+# Función para calcular la mediana en frecuencia
+def calcular_mediana_frecuencia(fft_magnitudes, freqs):
+    potencia_acumulada = np.cumsum(fft_magnitudes**2)
+    potencia_total = potencia_acumulada[-1]
+    mediana_idx = np.where(potencia_acumulada >= potencia_total / 2)[0][0]
+    return freqs[mediana_idx]
+
+medianas_frecuencia = []
+medias_ventanas = []
+desviaciones_ventanas = []
+
+for i, segmento in enumerate(ventanas_aventanadas):
+    # Calcular la FFT del segmento
+    N = len(segmento)
+    fft_result = fft(segmento)
+    fft_magnitudes = np.abs(fft_result[:N // 2])  # Magnitudes de la FFT (mitad de la señal)
+    freqs = fftfreq(N, 1/fs)[:N // 2]  # Frecuencias correspondientes
+    
+    # Calcular la mediana en frecuencia
+    mediana_frecuencia = calcular_mediana_frecuencia(fft_magnitudes, freqs)
+    medianas_frecuencia.append(mediana_frecuencia)
+    
+    # Calcular la media y desviación estándar del segmento ventaneado
+    media_segmento = np.mean(segmento)
+    desviacion_segmento = np.std(segmento)
+    
+    medias_ventanas.append(media_segmento)
+    desviaciones_ventanas.append(desviacion_segmento)
+```
+El código, además de aplicar la transformada de Fourier a cada ventana, halla estadísticas descriptivas, media, mediana y desviación estándar de cada uno de las ventanas ya en el dominio de la fecuencia para representar los datos con mayor facilidad, permitiendo el análisis de la distribución de los mismos. 
+
+En cuanto a las medianas, estos fueron los resultados: 
+
+* Medianas en frecuencia de cada ventana:
+[44.11764705882352, 35.29411764705882, 30.882352941176467, 57.35294117647058, 48.52941176470588, 52.94117647058823, 44.11764705882352, 57.35294117647058, 35.29411764705882, 61.764705882352935, 35.29411764705882, 30.882352941176467, 30.882352941176467, 39.705882352941174]
+
+Para las medias y desviaciones, en las primeras ventanas se obtuvo lo siguiente: 
+
+* Ventana 1:
+Media: -9.370447101183476e-05, 
+Desviación estándar: 0.11205817169650448, 
+Mediana en frecuencia: 44.11764705882352
+
+* Ventana 2:
+Media: -6.810813650019912e-05
+Desviación estándar: 0.13351582657994487
+Mediana en frecuencia: 35.29411764705882
+
+* Ventana 3:
+Media: 0.00011106153308511899
+Desviación estándar: 0.24894355321348183
+Mediana en frecuencia: 30.882352941176467
+
+* Ventana 4:
+Media: 0.0001594586506530195
+Desviación estándar: 0.2416175964179292
+Mediana en frecuencia: 57.35294117647058
+
+En general, existe una correlación aparente entre la desviación estándar y la mediana en frecuencia. A medida que la mediana en frecuencia disminuye (ventanas 1 a 3), la variabilidad de la señal aumenta. Esto puede interpretarse como una señal más dispersa o menos controlada cuando las frecuencias son más bajas, lo que podría estar relacionado con una mayor relajación muscular o la presencia de ruido.
+En la ventana 4, tanto la desviación estándar como la mediana en frecuencia son altas, lo que podría corresponder a un aumento significativo en la actividad muscular o a una contracción intensa.
+
+Adicionalmente, se realizó la gráfica del espectograma y el espectro de cada ventana para evidenciar el comportamiento de los segmentos en el cominio de la frecuencia. A continuación se presentan las gráficas para la primera y última ventana. 
+
+![espectros ventana 1](https://github.com/user-attachments/assets/5e7b7c3d-350c-4b00-86a7-305440fe7d10)
+
+*Figura 10: Espectro y espectograma de la ventana 1. Tomado de : Autoría propia*
+
+El espectro muestra la distribución de las frecuencias a lo largo del tiempo en un formato visual de espectrograma, donde los colores representan la potencia en diferentes bandas de frecuencia. En este caso, se observa que las frecuencias entre 20 Hz y 60 Hz tienen la mayor potencia, indicada por los tonos más claros (verde y amarillo), lo que sugiere que la actividad muscular dominante ocurre en este rango a lo largo del tiempo.
+
+Por otro lado, la señal muestra el espectro de frecuencia resultante de aplicar la Transformada de Fourier a la señal filtrada. Aquí, se identifica un pico principal alrededor de los 45 Hz, lo que indica que esta es la frecuencia dominante de la actividad muscular registrada en este segmento. A diferencia del espectro superior, que varía en función del tiempo, esta gráfica presenta una visión estática que concentra la información en función de la magnitud de cada frecuencia en la señal total.
+
+![espectros ventana 14](https://github.com/user-attachments/assets/227c15e5-8d95-4439-9288-15d60940ad23)
+
+*Figura 11: Espectro y espectograma de la ventana 1. Tomado de : Autoría propia*
+
+Para este segmento se observa que las frecuencias entre los 20 Hz y los 60 Hz son las que tienen mayor potencia. Esto indica que en esa ventana de tiempo, la mayor actividad muscular ocurre dentro de este rango de frecuencias, lo cual es típico en señales EMG. Las frecuencias más altas, por encima de los 100 Hz, tienen menos potencia, lo que sugiere que las frecuencias más relevantes están concentradas en los rangos más bajos.
+
+En la señal, que muestra el espectro de frecuencia tras aplicar la Transformada de Fourier, se observa un pico significativo alrededor de los 45 Hz con una magnitud máxima cercana a 12. Esto indica que esa es la frecuencia dominante de la actividad muscular. También hay otros picos menores entre los 20 Hz y los 100 Hz, lo que sugiere la presencia de otros componentes armónicos, pero las magnitudes caen considerablemente después de los 100 Hz, confirmando que la mayor parte de la actividad relevante ocurre en las frecuencias más bajas.
+
+## Test de hipótesis
+El test de hipótesis es un enfoque útil para comparar señales EMG entre diferentes ventanas temporales, como la ventana 1 y la ventana 14, con el fin de determinar si las diferencias observadas son significativas o no. Para realizar este análisis, empleamos el test t de Student, que es una herramienta estadística diseñada para comparar las medias de dos grupos de datos. En este caso, las características clave de la señal EMG, como la magnitud de las frecuencias dominantes o el contenido de potencia, se analizan entre estas dos ventanas. El test t es adecuado para este tipo de datos porque, tras el filtrado, la señal suele tener una distribución aproximadamente normal, y las muestras de cada ventana son relativamente pequeñas.
+
+En particular, el test t de Student es útil cuando se quiere comparar el estado inicial de la señal con el estado al final del proceso , donde pueden aparecer fenómenos como la fatiga muscular. Se podrían observar cambios en la señal, como una disminución en la potencia de las frecuencias altas y una reducción en la magnitud de los picos del espectro, indicadores del fallo muscular. El test t de Student  permite evaluar si estas diferencias son estadísticamente significativas, lo que confirmaría que el fallo ha influido en la señal. De esta forma, este método es una herramienta  para validar cuantitativamente los cambios en las señales EMG a lo largo del tiempo.
+
+Para aplicarlo en el proeyecto se tomó la primer y última ventana, relacionando el test de la siguiente manera. 
+
+* H(0) : La mediana en frecuencia de la primer ventana es igual a la mediana en frecuencia de la última ventana.
+* H(1) : La mediana en frecuencia de la primer ventana es menor a la mediana en frecuencia de la última ventana. (La que queremos que sea real).
+
+  
+El código es el siguiente  :
+  
+```python
+# %% 
+##TEST DE HIPOTESIS
+
+primeras_medianas = medianas_frecuencia[:3]
+ultimas_medianas = medianas_frecuencia[-3:]
+
+t_stat, p_value = ttest_rel(primeras_medianas, ultimas_medianas)
+
+if np.mean(primeras_medianas) > np.mean(ultimas_medianas):
+  
+print(f"Estadístico t: {t_stat}")
+print(f"p-valor (unilateral): {p_value}")
+
+# Verificar si se rechaza la hipótesis nula
+alpha = 0.05  # Nivel de significancia
+if p_value < alpha:
+    print("Se rechaza la hipótesis nula: las medianas de las primeras ventanas son significativamente mayores que las últimas.")
+else:
+    print("No se puede rechazar la hipótesis nula.")
+```
+Los resultados obtenidos fueron llos siguientes: 
+
+* Estadístico t: 0.45883146774112327
+* p-valor: 0.34569665003790817
+
+Teniendo en cuenta el p-valor, no se puede rechazar la hipótesis nula. Por lo tanto, la mediana en frecuencia tanto de la primera como de la última ventana son iguales. A pesar de que al revisar el arreglo de datos de los resultados de las medianas, la primera si resulta mayor que la última, los resultados del test de hipótesis, se deben a que estadísticamente la diferencia no es lo suficientemente relevante para tenerla en cuenta. 
+
+Se buscaba que la hipótesis alternativa fuera real, debido a que se quería demostrar la evidencia de la actividad muscular al llegar a fallo. Al no cumplirlo, se puede deducir que pudo haber incovenientes en la adquisición de la señal y pudieron no haberse guardado toda la cantidad de datos necesarios. 
+
+Adicionalmente, el módulo pudo haber afectado en la correcta adquisición de la señal, distrosionando los resultados reales de la EMG del bíceps. 
 
 
 [^1^]:Rodríguez, J. (2019). Análisis y procesamiento de señales electromiográficas para la clasificación de actividades de la vida diaria. Universidad Tecnológica de Bolívar.
